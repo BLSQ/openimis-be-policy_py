@@ -1,7 +1,7 @@
-from policy.reports import policy_renewals
+from policy.reports import policy_renewals, new_enrollments, primary_operational_indicators
 from policy.reports.policy_renewals import policy_renewals_query
-from policy.reports import primary_operational_indicators
 from policy.reports.primary_operational_indicators import policies_primary_indicators_query
+from policy.reports.new_enrollments import new_enrollments_query
 
 report_definitions = [
     {
@@ -21,5 +21,14 @@ report_definitions = [
         "module": "policy",
         "python_query": policies_primary_indicators_query,
         "permission": ["131201"],
+    },
+    {
+        "name": "policy_new_enrollments",
+        "engine": 0,
+        "default_report": new_enrollments.template,
+        "description": "New Enrollments",
+        "module": "policy",
+        "python_query": new_enrollments_query,
+        "permission": ["131227"],
     },
 ]
