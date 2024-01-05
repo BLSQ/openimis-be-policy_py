@@ -1,10 +1,10 @@
-from policy.reports import policy_renewals, new_enrollments, primary_operational_indicators, non_active_members, \
-    nhia_policy_renewals
+from policy.reports import policy_renewals, nhia_new_enrollments, primary_operational_indicators, \
+                           nhia_non_active_members, nhia_policy_renewals
 from policy.reports.nhia_policy_renewals import nhia_policy_renewals_query
-from policy.reports.non_active_members import non_active_members_query
+from policy.reports.nhia_non_active_members import nhia_non_active_members_query
 from policy.reports.policy_renewals import policy_renewals_query
 from policy.reports.primary_operational_indicators import policies_primary_indicators_query
-from policy.reports.new_enrollments import new_enrollments_query
+from policy.reports.nhia_new_enrollments import nhia_new_enrollments_query
 
 report_definitions = [
     {
@@ -26,28 +26,28 @@ report_definitions = [
         "permission": ["131201"],
     },
     {
-        "name": "policy_new_enrollments",
+        "name": "nhia_new_enrollments",
         "engine": 0,
-        "default_report": new_enrollments.template,
-        "description": "New Enrollments",
+        "default_report": nhia_new_enrollments.template,
+        "description": "NHIA - New Enrollments",
         "module": "policy",
-        "python_query": new_enrollments_query,
+        "python_query": nhia_new_enrollments_query,
         "permission": ["131227"],
     },
     {
-        "name": "non_active_members",
+        "name": "nhia_non_active_members",
         "engine": 0,
-        "default_report": non_active_members.template,
-        "description": "Non-active members",
+        "default_report": nhia_non_active_members.template,
+        "description": "NHIA - Non-Active Members",
         "module": "policy",
-        "python_query": non_active_members_query,
+        "python_query": nhia_non_active_members_query,
         "permission": ["131228"],
     },
     {
         "name": "nhia_policy_renewals",
         "engine": 0,
         "default_report": nhia_policy_renewals.template,
-        "description": "NHIA Policy Renewals",
+        "description": "NHIA - Policy Renewals",
         "module": "policy",
         "python_query": nhia_policy_renewals_query,
         "permission": ["131229"],

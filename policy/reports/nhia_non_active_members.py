@@ -13,7 +13,7 @@ template = """{
             "y": 20,
             "width": 575,
             "height": 40,
-            "content": "Non-Active Members",
+            "content": "NHIA - Non-Active Members",
             "richText": false,
             "richTextContent": null,
             "richTextHtml": "",
@@ -2582,7 +2582,7 @@ def calculate_age(dob):
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
-def non_active_members_query(user, **kwargs):
+def nhia_non_active_members_query(user, **kwargs):
     report_data = {}
 
     # First fetching all insuree IDs who have an active policies

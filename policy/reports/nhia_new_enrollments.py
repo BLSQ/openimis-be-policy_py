@@ -13,7 +13,7 @@ template = """{
             "y": 20,
             "width": 575,
             "height": 40,
-            "content": "New Enrollments",
+            "content": "NHIA - New Enrollments",
             "richText": false,
             "richTextContent": null,
             "richTextHtml": "",
@@ -3186,7 +3186,7 @@ def calculate_age(dob):
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
-def new_enrollments_query(user, start_date: None, end_date: None, **kwargs):
+def nhia_new_enrollments_query(user, start_date: None, end_date: None, **kwargs):
     # Checking received parameters
     if start_date is None:
         return {"error": "Error - the start date must be selected"}

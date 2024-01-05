@@ -13,7 +13,7 @@ template = """{
             "y": 20,
             "width": 575,
             "height": 40,
-            "content": "NHIA Policy Renewals",
+            "content": "NHIA - Policy Renewals",
             "richText": false,
             "richTextContent": null,
             "richTextHtml": "",
