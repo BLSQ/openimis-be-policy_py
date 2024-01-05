@@ -1,4 +1,5 @@
-from policy.reports import policy_renewals, new_enrollments, primary_operational_indicators
+from policy.reports import policy_renewals, new_enrollments, primary_operational_indicators, non_active_members
+from policy.reports.non_active_members import non_active_members_query
 from policy.reports.policy_renewals import policy_renewals_query
 from policy.reports.primary_operational_indicators import policies_primary_indicators_query
 from policy.reports.new_enrollments import new_enrollments_query
@@ -30,5 +31,14 @@ report_definitions = [
         "module": "policy",
         "python_query": new_enrollments_query,
         "permission": ["131227"],
+    },
+    {
+        "name": "non_active_members",
+        "engine": 0,
+        "default_report": non_active_members.template,
+        "description": "Non-active members",
+        "module": "policy",
+        "python_query": non_active_members_query,
+        "permission": ["131228"],
     },
 ]
