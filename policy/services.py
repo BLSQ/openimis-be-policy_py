@@ -41,6 +41,7 @@ class PolicyRenewalService:
 
     def delete(self, policy_renewal):
         try:
+            logger.info(f"Requested to delete policy renewal {policy_renewal.uuid}")
             policy_renewal = PolicyRenewal.objects.get(uuid=policy_renewal.uuid)
             logger.debug(f'YEAHHHH {policy_renewal.uuid}')
             # policy_renewal.details.all().delete()
@@ -811,6 +812,7 @@ class NativeEligibilityService(object):
 
 
 def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_interval=None, location_id=None, location_levels=4):
+    logger.info("Insert renewals: start")
     if reminding_interval is None:
         reminding_interval = PolicyConfig.policy_renewal_interval
     from core import datetime
@@ -819,8 +821,10 @@ def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_int
         status__in=[Policy.STATUS_EXPIRED, Policy.STATUS_ACTIVE],
         validity_to__isnull=True,
     )
+    logger.info(f"Insert renewals: before filtering policies - total {policies.count()}")
     if reminding_interval:
         policies = policies.filter(expiry_date__lte=now + core.datetimedelta(days=reminding_interval))
+    logger.info(f"Insert renewals: after filtering policies - total {policies.count()}")
     if location_id:
         # TODO support the various levels
         policies = policies.filter(
@@ -839,6 +843,7 @@ def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_int
     policies = policies.prefetch_related("product")
 
     for policy in policies:
+        logger.info(f"Insert renewals: policy {policy.id}-{policy.uuid} - for family {policy.family.id} ({policy.family.head_insuree.chf_id})")
         renewal_warning = 0
         renewal_date = policy.expiry_date + core.datetimedelta(days=1)
         product = policy.product  # will be updated if there is a conversion product
@@ -880,6 +885,7 @@ def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_int
             .filter(Q(product_id=policy.product_id) | Q(product_id=product.id)) \
             .filter(start_date__gte=renewal_date)
         if not following_policies.first():
+            logger.info(f"Insert renewals: checks done, renewal can be created for policy {policy.id}-{policy.uuid}")
             policy_renewal, policy_renewal_created = PolicyRenewal.objects.get_or_create(
                 policy=policy,
                 validity_to=None,
@@ -899,6 +905,8 @@ def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_int
             )
             if policy_renewal_created:
                 create_insuree_renewal_detail(policy_renewal)  # The insuree module can create additional renewal data
+        else:
+            logger.info(f"Insert renewals: checks done, no renewal for policy {policy.id}-{policy.uuid}")
 
 
 def update_renewals():

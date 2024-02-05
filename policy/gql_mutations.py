@@ -45,8 +45,11 @@ class CreateRenewOrUpdatePolicyMutation(OpenIMISMutation):
         data['audit_user_id'] = user.id_for_audit
         from core.utils import TimeUtils
         data['validity_from'] = TimeUtils.now()
+        logger.info("Before policy create_or_update")
         policy = PolicyService(user).update_or_create(data, user)
+        logger.info(f"After policy create_or_update: {policy.uuid}")
         policy_renewals = PolicyRenewal.objects.filter(policy=policy, validity_to__isnull=True)
+        logger.info(f"Total policy renewals found: {policy_renewals.count()}")
         [PolicyRenewalService(user).delete(policy_renewal) for policy_renewal in policy_renewals]
         PolicyMutation.object_mutated(user, client_mutation_id=client_mutation_id, policy=policy)
         return None
@@ -108,6 +111,7 @@ class RenewPolicyMutation(CreateRenewOrUpdatePolicyMutation):
                     data.pop('policy_uuid')
                 data["status"] = Policy.STATUS_IDLE
                 data["stage"] = Policy.STAGE_RENEWED
+                logger.info("Renew policy mutation requested")
                 return cls.do_mutate(PolicyConfig.gql_mutation_renew_policies_perms, user, **data)
         except Exception as exc:
             return [{
