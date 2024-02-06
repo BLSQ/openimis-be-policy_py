@@ -95,7 +95,7 @@ class Query(graphene.ObjectType):
     policy_renewals = DjangoFilterConnectionField(PolicyRenewalGQLType)
 
     def resolve_policy_renewals(self, info, **kwargs):
-        return PolicyRenewal.objects.filter(validity_to__isnull=True)
+        return PolicyRenewal.objects.filter(validity_to__isnull=True)  # TODO: add check based on whether or not the logged in user is an EO or not and if so, filter out their renewals
 
     def resolve_policy_values(self, info, **kwargs):
         if not info.context.user.has_perms(PolicyConfig.gql_query_policies_perms):

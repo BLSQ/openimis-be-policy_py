@@ -883,9 +883,9 @@ def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_int
         # Check if the policy has another following policy
         following_policies = Policy.objects.filter(family_id=policy.family_id) \
             .filter(Q(product_id=policy.product_id) | Q(product_id=product.id)) \
-            .filter(start_date__gte=renewal_date)
+            .filter(start_date__gte=renewal_date) # Add validity to check
         if not following_policies.first():
-            logger.info(f"Insert renewals: checks done, renewal can be created for policy {policy.id}-{policy.uuid}")
+            logger.info(f"Insert renewals: checks done, there should be a renewal for policy {policy.id}-{policy.uuid}")
             policy_renewal, policy_renewal_created = PolicyRenewal.objects.get_or_create(
                 policy=policy,
                 validity_to=None,
@@ -904,7 +904,10 @@ def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_int
                 )
             )
             if policy_renewal_created:
+                logger.info(f"Insert renewals: creating renewal for policy {policy.id}-{policy.uuid}")
                 create_insuree_renewal_detail(policy_renewal)  # The insuree module can create additional renewal data
+            else:
+                logger.info(f"Insert renewals: renewal for policy {policy.id}-{policy.uuid} already exists - {policy_renewal.uuid}")
         else:
             logger.info(f"Insert renewals: checks done, no renewal for policy {policy.id}-{policy.uuid}")
 
