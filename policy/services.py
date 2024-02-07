@@ -41,11 +41,11 @@ class PolicyRenewalService:
 
     def delete(self, policy_renewal):
         try:
-            logger.info(f"Requested to delete policy renewal {policy_renewal.uuid}")
-            policy_renewal = PolicyRenewal.objects.get(uuid=policy_renewal.uuid)
-            logger.debug(f'YEAHHHH {policy_renewal.uuid}')
-            # policy_renewal.details.all().delete()
+            logger.info(f"Deleting policy renewal {policy_renewal.uuid}")
             policy_renewal.delete_history()
+            logger.info(f"Deleting the related policy renewal details, if any")
+            for detail in policy_renewal.details.all():
+                detail.delete_history()
             return []
         except Exception as exc:
             logger.error(f'ERROR {exc}')
