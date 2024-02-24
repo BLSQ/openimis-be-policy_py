@@ -89,6 +89,10 @@ class Query(graphene.ObjectType):
         search=graphene.String(),
         district=graphene.String(),
         region=graphene.String(),
+        restrict_self=graphene.Boolean(
+            default_value=False,
+            description="Only return the current user's officer, if it is within the other filters"
+        ),
     )
 
     policy_renewals = DjangoFilterConnectionField(PolicyRenewalGQLType)
@@ -295,12 +299,15 @@ class Query(graphene.ObjectType):
             search=None,
             district=None,
             region=None,
+            restrict_self=False,
             **kwargs
     ):
-        if not info.context.user.has_perms(
+        only_self = not info.context.user.has_perms(
             PolicyConfig.gql_query_policy_officers_perms
-        ):
+        )
+        if only_self and not info.context.user.officer_id:
             raise PermissionDenied(_("unauthorized"))
+
         queryset = Officer.objects
         location_id = district if district else region
 
@@ -323,6 +330,10 @@ class Query(graphene.ObjectType):
                 | Q(last_name__icontains=search)
                 | Q(other_names__icontains=search)
             )
+
+        is_admin = hasattr(info.context.user, "is_imis_admin") and info.context.user.is_imis_admin
+        if not is_admin and (only_self or (restrict_self and info.context.user.officer_id)):
+            queryset = queryset.filter(id=info.context.user.officer_id)
 
         return queryset
 
