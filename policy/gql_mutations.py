@@ -3,15 +3,14 @@ import logging
 import graphene
 from django.db import transaction
 
-from policy.services import PolicyService, PolicyRenewalService
+from policy.services import PolicyService, process_create_renew_or_update_policy
 
 from .apps import PolicyConfig
 from core.schema import OpenIMISMutation
-from .models import Policy, PolicyMutation, PolicyRenewal
+from .models import Policy, PolicyMutation
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.utils.translation import gettext as _
-from .validations import validate_idle_policy
 
 logger = logging.getLogger(__name__)
 
@@ -39,28 +38,9 @@ class CreateRenewOrUpdatePolicyMutation(OpenIMISMutation):
         if not user.has_perms(perms):
             raise PermissionDenied(_("unauthorized"))
         client_mutation_id = data.get("client_mutation_id")
-        errors = validate_idle_policy(data)
-        if len(errors):
+        policy, errors = process_create_renew_or_update_policy(user, data)
+        if errors and len(errors):
             return errors
-        data['audit_user_id'] = user.id_for_audit
-        from core.utils import TimeUtils
-        data['validity_from'] = TimeUtils.now()
-        logger.info("Before policy create_or_update")
-        policy = PolicyService(user).update_or_create(data, user)
-        logger.info(f"After policy create_or_update: {policy.uuid}")
-        if data["stage"] == Policy.STAGE_RENEWED:
-            logger.info("Deleting the optional PolicyRenewals after renewing")
-            previous_policy = (Policy.objects.filter(validity_to__isnull=True,
-                                                     family_id=data["family_id"],
-                                                     product_id=data["product_id"],
-                                                     status__in=[Policy.STATUS_EXPIRED, Policy.STATUS_ACTIVE])
-                                             .order_by("-id")
-                                             .first())
-            if not previous_policy:
-                logger.error("Can't find the policy that was renewed - not deleting the PolicyRenewals")
-            policy_renewals = PolicyRenewal.objects.filter(policy=previous_policy, validity_to__isnull=True)
-            logger.info(f"Total PolicyRenewals found: {policy_renewals.count()}")
-            [PolicyRenewalService(user).delete(policy_renewal) for policy_renewal in policy_renewals]
         PolicyMutation.object_mutated(user, client_mutation_id=client_mutation_id, policy=policy)
         return None
 
