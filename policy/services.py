@@ -1060,7 +1060,7 @@ def process_create_renew_or_update_policy(user, data):
     logger.info("Before policy create_or_update")
     policy = PolicyService(user).update_or_create(data, user)
     logger.info(f"After policy create_or_update: {policy.uuid}")
-    if data["stage"] == Policy.STAGE_RENEWED:
+    if "stage" in data and data["stage"] == Policy.STAGE_RENEWED:
         logger.info("Deleting the optional PolicyRenewals after renewing")
         previous_policy = (Policy.objects.filter(validity_to__isnull=True,
                                                  family_id=data["family_id"],
