@@ -1,15 +1,16 @@
 from datetime import datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
-from django.conf import settings
 from django.db import connection
 
+from core.utils import get_nhia_logo
 from tools.utils import dictfetchall
 import logging
 logger = logging.getLogger(__name__)
 
 # If manually pasting from ReportBro and you have test data, search and replace \" with \\"
-template = """{
+template = """
+{
   "docElements": [
     {
       "elementType": "text",
@@ -81,6 +82,27 @@ template = """{
       "spreadsheet_colspan": "",
       "spreadsheet_addEmptyRow": false,
       "spreadsheet_textWrap": false
+    },
+    {
+      "elementType": "image",
+      "id": 358,
+      "containerId": "0_header",
+      "x": 10,
+      "y": 0,
+      "width": 80,
+      "height": 50,
+      "source": "${nhia_logo}",
+      "image": "",
+      "imageFilename": "",
+      "horizontalAlignment": "left",
+      "verticalAlignment": "top",
+      "backgroundColor": "",
+      "printIf": "",
+      "removeEmptyElement": false,
+      "link": "",
+      "spreadsheet_hide": false,
+      "spreadsheet_column": "",
+      "spreadsheet_addEmptyRow": false
     },
     {
       "elementType": "line",
@@ -3566,7 +3588,7 @@ template = """{
       "elementType": "text",
       "id": 7,
       "containerId": "0_footer",
-      "x": 320,
+      "x": 567,
       "y": 0,
       "width": 255,
       "height": 30,
@@ -3639,9 +3661,9 @@ template = """{
       "containerId": "0_footer",
       "x": 0,
       "y": 0,
-      "width": 290,
+      "width": 470,
       "height": 30,
-      "content": "Created on ${current_date}",
+      "content": "Created on ${current_date} by ${requested_by}",
       "richText": false,
       "richTextContent": null,
       "richTextHtml": "",
@@ -4043,6 +4065,30 @@ template = """{
       "expression": "",
       "showOnlyNameType": false,
       "testData": ""
+    },
+    {
+      "id": 356,
+      "name": "requested_by",
+      "type": "string",
+      "arrayItemType": "string",
+      "eval": false,
+      "nullable": false,
+      "pattern": "",
+      "expression": "",
+      "showOnlyNameType": false,
+      "testData": ""
+    },
+    {
+      "id": 357,
+      "name": "nhia_logo",
+      "type": "image",
+      "arrayItemType": "string",
+      "eval": false,
+      "nullable": false,
+      "pattern": "",
+      "expression": "",
+      "showOnlyNameType": false,
+      "testData": ""
     }
   ],
   "styles": [
@@ -4331,7 +4377,9 @@ def policies_primary_indicators_query(user, yearMonth, locationId=0, prodId=0, *
                 },
             )
             return {
-                "data": dictfetchall(cur)
+                "data": dictfetchall(cur),
+                "nhia_logo": get_nhia_logo(),
+                "requested_by": f"{user.username} - {user.other_names} {user.last_name}",
             }
         except Exception as e:
             logger.exception("Error fetching policies primary indicators query")
