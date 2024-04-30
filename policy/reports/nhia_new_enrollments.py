@@ -3284,7 +3284,7 @@ def nhia_new_enrollments_query(user, start_date: None, end_date: None, **kwargs)
             "expiry_date": insuree_policy.expiry_date,
             "product": f"{product.code} {product.name}",
             "status": insuree_policy.policy.status,
-            "officer": f"{officer.other_names} {officer.last_name}",
+            "officer": f"{officer.other_names} {officer.last_name}" if officer else "Autoenroll",
         }
         data.append(new_data_element)
 
