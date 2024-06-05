@@ -1,4 +1,5 @@
-from django.db.models import Q
+from django.core.paginator import Paginator
+from django.db.models import Q, Subquery, OuterRef
 
 from core.utils import get_nhia_logo
 from insuree.models import InsureePolicy, Insuree
@@ -2254,7 +2255,7 @@ template = """
       "arrayItemType": "string",
       "eval": false,
       "nullable": true,
-      "pattern": "$ #,##0.00",
+      "pattern": "D #,##0.00",
       "expression": "",
       "showOnlyNameType": false,
       "testData": ""
@@ -2637,36 +2638,43 @@ def nhia_non_active_members_query(user, **kwargs):
 
     # First fetching all insuree IDs who have an active policies
     # then taking all insurees and subtracting all those with an active policy
-    search_filters = (Q(policy__status=Policy.STATUS_ACTIVE)
+    policy_filters = (Q(policy__status=Policy.STATUS_ACTIVE)
                       & Q(validity_to__isnull=True)
                       & Q(policy__validity_to__isnull=True))
-    policies = (InsureePolicy.objects.filter(search_filters)
-                                     .values("insuree_id"))
+    policies = (InsureePolicy.objects.filter(policy_filters)
+                                     .values_list("insuree_id", flat=True))
 
     data = []
-    insuree_ids_to_filter_out = [policy["insuree_id"] for policy in policies]
     insuree_filters = (Q(validity_to__isnull=True)
-                       & ~Q(id__in=insuree_ids_to_filter_out))  # in case of performance issues, maybe it would be better to use an exists subclause instead
+                       & ~Q(id__in=policies))
     non_active_insurees = (Insuree.objects.filter(insuree_filters)
-                                          .prefetch_related("insuree_policies"))
-    for insuree in non_active_insurees:
-        lga = insuree.family.location.parent.parent
-        new_data_element = {
-            "nin": insuree.chf_id,
-            "insuree": f"{insuree.other_names} {insuree.last_name}",
-            "lga": f"{lga.code} {lga.name}",
-            "gender": insuree.gender.gender,
-            "age": calculate_age(insuree.dob),
-            "expiry_date": None,
-        }
-        # someone who has been in the system for a while might have various expired policies,
-        # so we'll take only the latest one
-        last_ip = (insuree.insuree_policies.filter(validity_to__isnull=True)
-                                           .order_by("-expiry_date")
-                                           .first())
-        if last_ip:
-            new_data_element["expiry_date"] = last_ip.expiry_date
-        data.append(new_data_element)
+                                          .annotate(
+                                                expiry_date=Subquery(
+                                                    InsureePolicy.objects.filter(insuree_id=OuterRef('pk'))
+                                                                         .order_by('-expiry_date')
+                                                                         .values('expiry_date')[:1]
+                                                )
+                                            )
+                                          .prefetch_related("insuree_policies")
+                                          .prefetch_related("family__location__parent__parent")
+                                          .order_by("chf_id"))
+
+    # https://nextlinklabs.com/resources/insights/django-big-data-iteration
+    paginator = Paginator(non_active_insurees, 1000)
+    for page_number in paginator.page_range:
+        page = paginator.page(page_number)
+
+        for insuree in page.object_list:
+            lga = insuree.family.location.parent.parent
+            new_data_element = {
+                "nin": insuree.chf_id,
+                "insuree": f"{insuree.other_names} {insuree.last_name}",
+                "lga": f"{lga.code} {lga.name}",
+                "gender": insuree.gender_id,
+                "age": calculate_age(insuree.dob),
+                "expiry_date": insuree.expiry_date,
+            }
+            data.append(new_data_element)
 
     report_data["data"] = data
     return report_data
