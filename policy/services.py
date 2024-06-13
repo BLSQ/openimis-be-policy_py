@@ -2,6 +2,8 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime as py_datetime, date as py_date
 
+from django.core.paginator import Paginator
+
 import core
 from claim.models import ClaimService, Claim, ClaimItem
 from django import dispatch
@@ -848,83 +850,88 @@ def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_int
 
     policies = policies.prefetch_related("product")
 
-    for policy in policies:
-        logger.info(f"Insert renewals: policy {policy.id}-{policy.uuid} - for family {policy.family.id} ({policy.family.head_insuree.chf_id})")
-        renewal_warning = 0
-        renewal_date = policy.expiry_date + core.datetimedelta(days=1)
-        product = policy.product  # will be updated if there is a conversion product
-        officer = policy.officer
-        # Get product code or substitution
-        if not product.conversion_product_id:
-            previous_products = []
-            # Could also add a len(previous_products) < 20 but this avoids loops in the conversion_products
-            while product not in previous_products and product.conversion_product:
-                previous_products.append(product)
-                product = product.conversion_product
-            if product in previous_products:
-                logger.error("The product %s has a substitution chain with a loop: %s, continuing with %s",
-                             policy.product_id, [p.id for p in previous_products], product.id)
+    paginator = Paginator(policies, 1000)
+    for page_number in paginator.page_range:
+        page = paginator.page(page_number)
 
-        # TODO allow this kind of comparison where the left side is a datetime
-        # if datetime.datetime(product.date_from) <= renewal_date <= product.date_to:
-        # noinspection PyChainedComparisons
-        if renewal_date >= product.date_from and renewal_date <= product.date_to:
-            renewal_warning |= 1
+        for policy in page.object_list:
 
-        # This is from the original code but is actually not possible as we have an inner join on it
-        if not policy.officer_id:
-            renewal_warning |= 2
-        else:
-            if officer:
-                previous_officers = []
-                while officer not in previous_officers and officer.substitution_officer:
-                    previous_officers.append(officer)
-                    officer = officer.substitution_officer
-                if officer in previous_officers:
+            logger.info(f"Insert renewals: policy {policy.id} - {policy.uuid} - for family {policy.family.id} ({policy.family.head_insuree.chf_id})")
+            renewal_warning = 0
+            renewal_date = policy.expiry_date + core.datetimedelta(days=1)
+            product = policy.product  # will be updated if there is a conversion product
+            officer = policy.officer
+            # Get product code or substitution
+            if not product.conversion_product_id:
+                previous_products = []
+                # Could also add a len(previous_products) < 20 but this avoids loops in the conversion_products
+                while product not in previous_products and product.conversion_product:
+                    previous_products.append(product)
+                    product = product.conversion_product
+                if product in previous_products:
                     logger.error("The product %s has a substitution chain with a loop: %s, continuing with %s",
-                                 policy.officer_id, [o.id for o in previous_officers], officer.id)
-            if officer.works_to and renewal_date > officer.works_to:
-                renewal_warning |= 4
+                                 policy.product_id, [p.id for p in previous_products], product.id)
 
-        # Check if the policy has another following policy
-        following_policies = Policy.objects.filter(family_id=policy.family_id) \
-            .filter(Q(product_id=policy.product_id) | Q(product_id=product.id)) \
-            .filter(start_date__gte=renewal_date) # Add validity to check
-        if not following_policies.first():
-            logger.info(f"Insert renewals: checks done, there should be a renewal for policy {policy.id}-{policy.uuid}")
-            renewals = PolicyRenewal.objects.filter(policy=policy, validity_to=None).order_by("id")
-            if not renewals:
-                policy_renewal = PolicyRenewal.objects.create(
-                    policy=policy,
-                    validity_to=None,
-                    renewal_prompt_date=now,
-                    renewal_date=renewal_date,
-                    new_officer=officer,
-                    phone_number=officer.phone if officer else None,
-                    sms_status=0,
-                    insuree=policy.family.head_insuree,
-                    new_product=product,
-                    renewal_warnings=renewal_warning,
-                    validity_from=now,
-                    audit_user_id=0,
-                )
-                logger.info(f"Insert renewals: creating renewal for policy {policy.id} - {policy.uuid}")
-                create_insuree_renewal_detail(policy_renewal)  # The insuree module can create additional renewal data
+            # TODO allow this kind of comparison where the left side is a datetime
+            # if datetime.datetime(product.date_from) <= renewal_date <= product.date_to:
+            # noinspection PyChainedComparisons
+            if renewal_date >= product.date_from and renewal_date <= product.date_to:
+                renewal_warning |= 1
+
+            # This is from the original code but is actually not possible as we have an inner join on it
+            if not policy.officer_id:
+                renewal_warning |= 2
             else:
-                # Since we're using django-apscheduler without a way to prevent concurrency, there might be several renewals for the same policy
-                # We're going to take this opportunity to clean up extra renewals
-                logger.info(f"Insert renewals: renewal for policy {policy.id} - {policy.uuid} already exists - at least 1")
-                total = 0
-                for renewal in renewals:
-                    total += 1
-                    if total == 1:
-                        continue
-                    logger.info(f"Insert renewals: deleting extra renewal ({renewal.uuid}) for policy {policy.id} - {policy.uuid}")
-                    # Faking a user, since this is triggered by an automated task and we don't have any
-                    user = FakeUser(id_for_audit='-1')
-                    PolicyRenewalService(user).delete(renewal)
-        else:
-            logger.info(f"Insert renewals: checks done, no renewal for policy {policy.id} - {policy.uuid}")
+                if officer:
+                    previous_officers = []
+                    while officer not in previous_officers and officer.substitution_officer:
+                        previous_officers.append(officer)
+                        officer = officer.substitution_officer
+                    if officer in previous_officers:
+                        logger.error("The product %s has a substitution chain with a loop: %s, continuing with %s",
+                                     policy.officer_id, [o.id for o in previous_officers], officer.id)
+                if officer.works_to and renewal_date > officer.works_to:
+                    renewal_warning |= 4
+
+            # Check if the policy has another following policy
+            following_policies = Policy.objects.filter(family_id=policy.family_id) \
+                .filter(Q(product_id=policy.product_id) | Q(product_id=product.id)) \
+                .filter(start_date__gte=renewal_date) # Add validity to check
+            if not following_policies.first():
+                logger.info(f"Insert renewals: checks done, there should be a renewal for policy {policy.id} - {policy.uuid}")
+                renewals = PolicyRenewal.objects.filter(policy=policy, validity_to=None).order_by("id")
+                if not renewals:
+                    policy_renewal = PolicyRenewal.objects.create(
+                        policy=policy,
+                        validity_to=None,
+                        renewal_prompt_date=now,
+                        renewal_date=renewal_date,
+                        new_officer=officer,
+                        phone_number=officer.phone if officer else None,
+                        sms_status=0,
+                        insuree=policy.family.head_insuree,
+                        new_product=product,
+                        renewal_warnings=renewal_warning,
+                        validity_from=now,
+                        audit_user_id=0,
+                    )
+                    logger.info(f"Insert renewals: creating renewal for policy {policy.id} - {policy.uuid}")
+                    create_insuree_renewal_detail(policy_renewal)  # The insuree module can create additional renewal data
+                else:
+                    # Since we're using django-apscheduler without a way to prevent concurrency, there might be several renewals for the same policy
+                    # We're going to take this opportunity to clean up extra renewals
+                    logger.info(f"Insert renewals: renewal for policy {policy.id} - {policy.uuid} already exists - at least 1")
+                    total = 0
+                    for renewal in renewals:
+                        total += 1
+                        if total == 1:
+                            continue
+                        logger.info(f"Insert renewals: deleting extra renewal ({renewal.uuid}) for policy {policy.id} - {policy.uuid}")
+                        # Faking a user, since this is triggered by an automated task and we don't have any
+                        user = FakeUser(id_for_audit='-1')
+                        PolicyRenewalService(user).delete(renewal)
+            else:
+                logger.info(f"Insert renewals: checks done, no renewal for policy {policy.id} - {policy.uuid}")
 
 
 def update_renewals():
