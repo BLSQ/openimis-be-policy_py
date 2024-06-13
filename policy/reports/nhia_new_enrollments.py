@@ -1,3 +1,4 @@
+from django.core.paginator import Paginator
 from django.db.models import Q
 
 from core.models import InteractiveUser
@@ -3895,30 +3896,34 @@ def nhia_new_enrollments_query(user, start_date: None, end_date: None, **kwargs)
     user_codes_to_hf_mapping = fetch_user_codes_to_hf_mapping()
 
     data = []
-    for insuree_policy in ips:
-        insuree = insuree_policy.insuree
-        village = insuree.family.location
-        ward = village.parent
-        lga = ward.parent
-        product = insuree_policy.policy.product
-        officer = insuree_policy.policy.officer
-        new_data_element = {
-            "nin": insuree.chf_id,
-            "insuree": f"{insuree.other_names} {insuree.last_name}",
-            "lga": f"{lga.code} {lga.name}",
-            "ward": f"{ward.code} {ward.name}",
-            "village": f"{village.code} {village.name}",
-            "address": insuree.family.address,
-            "gender": insuree.gender_id,
-            "age": calculate_age(insuree.dob),
-            "enrollment_date": insuree_policy.enrollment_date,
-            "expiry_date": insuree_policy.expiry_date,
-            "hf": user_codes_to_hf_mapping.get(officer.code) if officer else UNKNOWN_HF,
-            "product": f"{product.code} {product.name}",
-            "status": insuree_policy.policy.status,
-            "officer": f"{officer.other_names} {officer.last_name}" if officer else "Autoenroll",
-        }
-        data.append(new_data_element)
+    paginator = Paginator(ips, 1000)
+    for page_number in paginator.page_range:
+        page = paginator.page(page_number)
+
+        for insuree_policy in page.object_list:
+            insuree = insuree_policy.insuree
+            village = insuree.family.location
+            ward = village.parent
+            lga = ward.parent
+            product = insuree_policy.policy.product
+            officer = insuree_policy.policy.officer
+            new_data_element = {
+                "nin": insuree.chf_id,
+                "insuree": f"{insuree.other_names} {insuree.last_name}",
+                "lga": f"{lga.code} {lga.name}",
+                "ward": f"{ward.code} {ward.name}",
+                "village": f"{village.code} {village.name}",
+                "address": insuree.family.address,
+                "gender": insuree.gender_id,
+                "age": calculate_age(insuree.dob),
+                "enrollment_date": insuree_policy.enrollment_date,
+                "expiry_date": insuree_policy.expiry_date,
+                "hf": user_codes_to_hf_mapping.get(officer.code) if officer else UNKNOWN_HF,
+                "product": f"{product.code} {product.name}",
+                "status": insuree_policy.policy.status,
+                "officer": f"{officer.other_names} {officer.last_name}" if officer else "Autoenroll",
+            }
+            data.append(new_data_element)
 
     report_data["data"] = data
     return report_data
