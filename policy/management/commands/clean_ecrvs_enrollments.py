@@ -1,8 +1,12 @@
 import logging
 
+from datetime import date
+from decimal import Decimal
+
 from dateutil.relativedelta import relativedelta
 from django.core.management.base import BaseCommand
 from django.core.paginator import Paginator
+from django.db.models import Q
 
 from insuree.models import Insuree
 from policy.models import Policy
@@ -11,6 +15,8 @@ from product.models import Product
 logger = logging.getLogger(__name__)
 
 UPDATE_PAGE_SIZE = 1000
+
+TODAY = date.today()
 
 
 def update_policy_for_children(policy: Policy, insuree: Insuree, product_id: int):
@@ -41,6 +47,20 @@ def update_policy(policy: Policy, product_id: int, enroll_date, start_date, effe
     policy.start_date = start_date
     policy.effective_date = effective_date
     policy.expiry_date = expiry_date
+    policy.value = Decimal(0.0)  # Since we're only updating free autoenrollments, value is always 0.0
+
+    new_status = Policy.STATUS_ACTIVE
+    if expiry_date < TODAY:
+        new_status = Policy.STATUS_EXPIRED
+
+    for ip in policy.insuree_policies.filter(validity_to__isnull=True):
+        ip.enrollment_date = enroll_date
+        ip.start_date = start_date
+        ip.effective_date = effective_date
+        ip.expiry_date = expiry_date
+        ip.save()
+
+    policy.status = new_status
     policy.save()
 
 
@@ -59,10 +79,11 @@ class Command(BaseCommand):
         default_product_id = Product.objects.filter(validity_to__isnull=True, code="BASIC").first().id
 
         logger.info("*** Fetching policies ***")
-        policies = (Policy.objects.filter(validity_to__isnull=True,
-                                          product_id=default_product_id)
+        policies = (Policy.objects.filter(Q(validity_to__isnull=True),
+                                          Q(product_id=default_product_id),
+                                          ~Q(status=Policy.STATUS_IDLE))
                                   .select_related("family__head_insuree")
-                                  .prefetch_related("premiums")
+                                  .prefetch_related("premiums", "insuree_policies")
                                   .order_by("id"))
 
         total_policies = 0
