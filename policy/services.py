@@ -848,7 +848,7 @@ def insert_renewals(date_from=None, date_to=None, officer_id=None, reminding_int
     if date_to:
         policies = policies.filter(expiry_date__lte=date_to)
 
-    policies = policies.prefetch_related("product")
+    policies = policies.prefetch_related("product").order_by("id")
 
     paginator = Paginator(policies, 1000)
     for page_number in paginator.page_range:
